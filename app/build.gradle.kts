@@ -4,7 +4,7 @@ plugins {
 
 android {
     namespace = "com.alexcv.myphoneinformation"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.alexcv.myphoneinformation"
