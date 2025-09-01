@@ -50,8 +50,25 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onReceive(Context context, Intent intent) {
                 int temp = intent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, -1);
-                float celsius = temp / 10f;
-                addTemperature(celsius);
+                addTemperature(temp);
+
+                int level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
+                int scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
+                int status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1);
+                int health = intent.getIntExtra(BatteryManager.EXTRA_HEALTH, BatteryManager.BATTERY_HEALTH_UNKNOWN);
+                int voltage = intent.getIntExtra(BatteryManager.EXTRA_VOLTAGE, -1);
+                BatteryManager mBatteryManager = (BatteryManager) context.getSystemService(Context.BATTERY_SERVICE);
+                long amperes = -1;
+                long chargeCounter = -1;
+                int currentPercentage = -1;
+                if (mBatteryManager != null) {
+                    amperes = mBatteryManager.getLongProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW);
+                    chargeCounter = mBatteryManager.getLongProperty(BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER);
+                    currentPercentage = mBatteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY);
+                }
+                int chargePlug = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, -1);
+
+                addBatteryInfo(level, scale, status, health, voltage, amperes, chargeCounter, currentPercentage, chargePlug);
             }
         };
         registerReceiver(batteryReceiver, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
@@ -63,15 +80,80 @@ public class MainActivity extends AppCompatActivity {
         unregisterReceiver(batteryReceiver);
     }
 
-    private void addTemperature(float value) {
+    private void addTemperature(int temp) {
+        float celsius = temp / 10f;
         int maxItems = 5;
         if (temperatureList.size() == maxItems) {
             temperatureList.remove(0);
             temperatureAdapter.notifyItemRemoved(0);
         }
         String time = new SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(new Date());
-        temperatureList.add(value + " °C (" + time + ")");
+        temperatureList.add(celsius + " °C (" + time + ")");
         temperatureAdapter.notifyItemInserted(temperatureList.size() - 1);
+    }
+
+    private void addBatteryInfo(int level, int scale, int status, int health, int voltage,
+                                   long amperes, long chargeCounter, int currentPercentage, int chargePlug) {
+        int percentageString = (int) ((level / (float) scale) * 100);
+
+        String statusString = "Desconocido";
+        if (status == BatteryManager.BATTERY_STATUS_CHARGING) {
+            statusString = "Cargando";
+        } else if (status == BatteryManager.BATTERY_STATUS_DISCHARGING) {
+            statusString = "Descargando";
+        } else if (status == BatteryManager.BATTERY_STATUS_FULL) {
+            statusString = "Carga completa";
+        } else if (status == BatteryManager.BATTERY_STATUS_NOT_CHARGING) {
+            statusString = "Sin cargar";
+        }
+
+        String healthString = "Desconocido";
+        switch (health) {
+            case BatteryManager.BATTERY_HEALTH_GOOD:
+                healthString = "Buena";
+                break;
+            case BatteryManager.BATTERY_HEALTH_OVERHEAT:
+                healthString = "Sobrecalentada";
+                break;
+            case BatteryManager.BATTERY_HEALTH_DEAD:
+                healthString = "Defectuosa";
+                break;
+            case BatteryManager.BATTERY_HEALTH_OVER_VOLTAGE:
+                healthString = "Sobrevoltaje";
+                break;
+            case BatteryManager.BATTERY_HEALTH_UNSPECIFIED_FAILURE:
+                healthString = "Fallo";
+                break;
+        }
+
+        float voltageV = voltage / 1000f;
+        float amperesA = amperes / 1_000_000f;
+        float watiosW = voltageV * amperesA;
+
+        float chargeCountermAH = chargeCounter / 1000f;
+        float chargeFullmAH = (chargeCountermAH/currentPercentage) * 100;
+
+        String chargePlugString = "Desconocida";
+        if (chargePlug == BatteryManager.BATTERY_PLUGGED_USB) {
+            chargePlugString = "USB";
+        } else if (chargePlug == BatteryManager.BATTERY_PLUGGED_AC) {
+            chargePlugString = "Cargador AC";
+        } else if (chargePlug == BatteryManager.BATTERY_PLUGGED_WIRELESS) {
+            chargePlugString = "Carga inalámbrica";
+        }
+
+        String info = "Nivel: " + percentageString + " %"
+                + "\nEstado: " + statusString
+                + "\nSalud: " + healthString
+                + "\nVoltaje(V): " + voltageV + " V"
+                + "\nAmperios(A): " + amperesA + " A"
+                + "\nVatios(W): " + watiosW + " W"
+                + "\nCapacidad actual: " + (chargeCountermAH > 0 ? chargeCountermAH + " mAh" : "No disponible")
+                + "\nCapacidad total: " + (chargeFullmAH > 0 ? chargeFullmAH + " mAh" : "No disponible")
+                + "\nFuente: " + chargePlugString;
+
+        TextView tvBatteryInfo = findViewById(R.id.tv_battery_info);
+        tvBatteryInfo.setText(info);
     }
 
     static class TemperatureAdapter extends RecyclerView.Adapter<TemperatureViewHolder> {
